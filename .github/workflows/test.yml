@@ -1,4 +1,4 @@
-name: Test Workflow
+name: Test Setup Node
 
 on:
   push:
@@ -9,5 +9,11 @@ jobs:
   test-job:
     runs-on: ubuntu-latest
     steps:
-      - name: Hello World
-        run: echo "Hello World!"
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      - name: Run node
+        run: node -v
