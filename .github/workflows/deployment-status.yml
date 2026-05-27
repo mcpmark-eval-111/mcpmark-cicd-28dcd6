@@ -30,7 +30,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 18
-          cache: 'npm'
 
       - name: Install Dependencies
         run: npm ci
@@ -113,87 +112,92 @@ Package Version: \`${{ steps.git-info.outputs.package_version }}\``
 
       - name: Create Rollback Components
         run: |
-          mkdir -p rollback-artifacts/backups
+          python3 -c "
+          import os, shutil
+          os.makedirs('rollback-artifacts/backups', exist_ok=True)
           
-          # 1. Executable rollback script with proper error handling
-          cat << 'EOF' > rollback-artifacts/rollback.sh
-          #!/bin/bash
+          # 1. Rollback script
+          with open('rollback-artifacts/rollback.sh', 'w') as f:
+              f.write('''#!/bin/bash
           set -e
-          echo "=== Starting Rollback Process ==="
+          echo \"=== Starting Rollback Process ===\"
           
           # Error handling trap
-          trap 'echo "Error: Rollback failed at line $LINENO" >&2' ERR
+          trap 'echo \"Error: Rollback failed at line \$LINENO\" >&2' ERR
           
-          if [ ! -d "backups" ]; then
-            echo "Error: Backup directory not found!" >&2
+          if [ ! -d \"backups\" ]; then
+            echo \"Error: Backup directory not found!\" >&2
             exit 1
           fi
           
-          echo "Restoring configurations..."
+          echo \"Restoring configurations...\"
           cp backups/package.json .
           cp backups/package-lock.json .
-          if [ -f "backups/.env.template" ]; then
+          if [ -f \"backups/.env.template\" ]; then
             cp backups/.env.template .env
           fi
           
-          echo "Verifying restored configurations..."
-          if [ ! -f "package.json" ]; then
-            echo "Error: package.json restoration failed!" >&2
+          echo \"Verifying restored configurations...\"
+          if [ ! -f \"package.json\" ]; then
+            echo \"Error: package.json restoration failed!\" >&2
             exit 1
           fi
           
-          echo "Running dependency verification..."
+          echo \"Running dependency verification...\"
           ./verify-dependencies.sh
           
-          echo "=== Rollback Successfully Completed ==="
-          EOF
-          chmod +x rollback-artifacts/rollback.sh
-
-          # 2. Configuration backups
-          cp package.json rollback-artifacts/backups/
-          cp package-lock.json rollback-artifacts/backups/
-          echo "PORT=3000" > rollback-artifacts/backups/.env.template
-
-          # 3. Dependency verification script
-          cat << 'EOF' > rollback-artifacts/verify-dependencies.sh
-          #!/bin/bash
+          echo \"=== Rollback Successfully Completed ===\"
+          ''')
+          
+          # 2. Backups
+          shutil.copy('package.json', 'rollback-artifacts/backups/package.json')
+          shutil.copy('package-lock.json', 'rollback-artifacts/backups/package-lock.json')
+          with open('rollback-artifacts/backups/.env.template', 'w') as f:
+              f.write('PORT=3000
+')
+              
+          # 3. Verify dependencies script
+          with open('rollback-artifacts/verify-dependencies.sh', 'w') as f:
+              f.write('''#!/bin/bash
           set -e
-          echo "=== Verifying Dependencies ==="
+          echo \"=== Verifying Dependencies ===\"
           
-          trap 'echo "Error: Dependency verification failed" >&2' ERR
+          trap 'echo \"Error: Dependency verification failed\" >&2' ERR
           
-          echo "Checking Node.js version..."
+          echo \"Checking Node.js version...\"
           node --version
           
-          echo "Checking npm version..."
+          echo \"Checking npm version...\"
           npm --version
           
-          echo "Installing dependencies via npm ci..."
+          echo \"Installing dependencies via npm ci...\"
           npm ci
           
-          echo "Dependency verification successful!"
-          EOF
-          chmod +x rollback-artifacts/verify-dependencies.sh
-
-          # 4. Detailed rollback documentation
-          cat << 'EOF' > rollback-artifacts/ROLLBACK.md
-          # Rollback Procedure Documentation
+          echo \"Dependency verification successful!\"
+          ''')
           
-          This package contains files needed to rollback deployment for commit `${{ needs.pre-deployment.outputs.current_sha }}`.
+          # 4. ROLLBACK.md
+          with open('rollback-artifacts/ROLLBACK.md', 'w') as f:
+              f.write('''# Rollback Procedure Documentation
+          
+          This package contains files needed to rollback deployment for commit \`{current_sha}\`.
           
           ## Step-by-Step Instructions
           
           1. Extract the rollback package:
-             ```bash
+             \`\`\`bash
              tar -xzf rollback-package.tar.gz
-             ```
+             \`\`\`
           2. Run the rollback script:
-             ```bash
+             \`\`\`bash
              ./rollback.sh
-             ```
+             \`\`\`
           3. Confirm configuration was restored (package.json and .env).
           4. Confirm application can start correctly.
-          EOF
+          '''.format(current_sha='${{ needs.pre-deployment.outputs.current_sha }}'))
+          "
+          chmod +x rollback-artifacts/rollback.sh
+          chmod +x rollback-artifacts/verify-dependencies.sh
 
       - name: Compress Rollback Package
         run: |
@@ -225,37 +229,53 @@ Package Version: \`${{ steps.git-info.outputs.package_version }}\``
             const packageVersion = '${{ needs.pre-deployment.outputs.package_version }}';
             const checksum = '${{ steps.checksum.outputs.checksum }}';
             
-            const commentBody = `
-            # 🔄 Rollback Plan Ready
-            
-            Previous Commit: ${prevSha}
-            Current Commit: ${currentSha}
-            Package Version: ${packageVersion}
-            Artifact: rollback-package-${currentSha}
-            
-            ### Completed Rollback Components
-            * ✅ Executable rollback script created
-            * ✅ Configuration backups created
-            * ✅ Dependency verification script created
-            * ✅ Detailed rollback documentation created
-            * ✅ Compressed rollback package with SHA256 checksum generated
-            
-            ### Quick Rollback Command
-            \`\`\`bash
-            # Extract and run rollback
-            tar -xzf rollback-package.tar.gz && ./rollback.sh
-            \`\`\`
-            
-            Rollback script created: true
-            Configuration backup: true
-            SHA256: ${checksum}
-            `;
+            const commentBody = `### 🔄 Rollback Plan Ready
+
+` +
+              `Previous Commit: ${prevSha}
+` +
+              `Current Commit: ${currentSha}
+` +
+              `Package Version: ${packageVersion}
+` +
+              `Artifact: rollback-package-${currentSha}
+
+` +
+              `### Completed Rollback Components
+` +
+              `* ✅ Executable rollback script created
+` +
+              `* ✅ Configuration backups created
+` +
+              `* ✅ Dependency verification script created
+` +
+              `* ✅ Detailed rollback documentation created
+` +
+              `* ✅ Compressed rollback package with SHA256 checksum generated
+
+` +
+              `### Quick Rollback Command
+` +
+              `\x60\x60\x60bash
+` +
+              `# Extract and run rollback
+` +
+              `tar -xzf rollback-package.tar.gz && ./rollback.sh
+` +
+              `\x60\x60\x60
+
+` +
+              `Rollback script created: true
+` +
+              `Configuration backup: true
+` +
+              `SHA256: ${checksum}`;
             
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issueNumber,
-              body: commentBody.trim()
+              body: commentBody
             });
 
   post-deployment:
@@ -292,22 +312,25 @@ Package Version: \`${{ steps.git-info.outputs.package_version }}\``
             });
             
             // Post completion comment
-            const completionComment = `
-            ### Deployment Completed Successfully
-            
-            All pre-deployment and rollback checks passed successfully.
-            
-            **Rollback Artifact Details:**
-            - **Artifact Name:** rollback-package-${currentSha}
-            - **SHA256 Checksum:** \`${checksum}\`
-            - **Retention Period:** 30 Days
-            `;
+            const completionComment = `### Deployment Completed Successfully
+
+` +
+              `All pre-deployment and rollback checks passed successfully.
+
+` +
+              `**Rollback Artifact Details:**
+` +
+              `- **Artifact Name:** rollback-package-${currentSha}
+` +
+              `- **SHA256 Checksum:** \`${checksum}\`
+` +
+              `- **Retention Period:** 30 Days`;
             
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issueNumber,
-              body: completionComment.trim()
+              body: completionComment
             });
             
             // Close the issue
