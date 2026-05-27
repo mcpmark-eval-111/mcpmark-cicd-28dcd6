@@ -6,7 +6,7 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
   issues: write
 
 jobs:
@@ -14,7 +14,7 @@ jobs:
     name: pre-deployment
     runs-on: ubuntu-latest
     outputs:
-      issue_number: ${{ steps.create-issue.outputs.result }}
+      issue_number: ${{ steps.create-issue.outputs.issue_number }}
       prev_sha: ${{ steps.get-info.outputs.prev_sha }}
       current_sha: ${{ steps.get-info.outputs.current_sha }}
       package_version: ${{ steps.get-info.outputs.package_version }}
@@ -28,7 +28,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 18
-          cache: 'npm'
+          cache: "npm"
 
       - name: Install Dependencies
         run: npm ci
@@ -58,23 +58,23 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const currentSha = '${{ steps.get-info.outputs.current_sha }}';
+            const currentSha = "${{ steps.get-info.outputs.current_sha }}";
             const { data: issue } = await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
               title: `Deployment Tracking - ${currentSha}`,
               body: `Tracking deployment for commit ${currentSha}.`,
-              labels: ['deployment', 'in-progress']
+              labels: ["deployment", "in-progress"]
             });
             
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issue.number,
-              body: 'Pre-deployment checks completed'
+              body: "Pre-deployment checks completed"
             });
             
-            return issue.number;
+            core.setOutput("issue_number", issue.number);
 
   rollback-preparation:
     name: rollback-preparation
@@ -186,42 +186,59 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const issueNumber = parseInt('${{ needs.pre-deployment.outputs.issue_number }}');
-            const prevSha = '${{ needs.pre-deployment.outputs.prev_sha }}';
-            const currentSha = '${{ needs.pre-deployment.outputs.current_sha }}';
-            const packageVersion = '${{ needs.pre-deployment.outputs.package_version }}';
-            const checksum = '${{ steps.create-artifacts.outputs.checksum }}';
+            const issueNumber = parseInt("${{ needs.pre-deployment.outputs.issue_number }}");
+            const prevSha = "${{ needs.pre-deployment.outputs.prev_sha }}";
+            const currentSha = "${{ needs.pre-deployment.outputs.current_sha }}";
+            const packageVersion = "${{ needs.pre-deployment.outputs.package_version }}";
+            const checksum = "${{ steps.create-artifacts.outputs.checksum }}";
             
-            const commentBody = [
-              '### 🔄 Rollback Plan Ready',
-              '',
-              `Previous Commit: ${prevSha}`,
-              `Current Commit: ${currentSha}`,
-              `Package Version: ${packageVersion}`,
-              `Artifact: rollback-package-${currentSha}`,
-              '',
-              '#### Completed Rollback Components:',
-              '- [x] ✅ Executable rollback script created and tested',
-              '- [x] ✅ Configuration backups created (package.json, package-lock.json, env templates)',
-              '- [x] ✅ Dependency verification script created for compatibility checks',
-              '- [x] ✅ Detailed step-by-step rollback documentation generated',
-              '- [x] ✅ Compressed rollback package with checksums prepared',
-              '',
-              '#### Verification Status:',
-              '- Rollback script created: true',
-              '- Configuration backup: true',
-              `- SHA256: ${checksum}`,
-              '',
-              '#### Quick Rollback Command:',
-              '```bash',
-              '# Download and unzip rollback artifact',
-              `unzip rollback-package-${currentSha}.zip`,
-              'cd rollback-package',
-              '# Execute rollback',
-              './rollback.sh',
-              '```'
-            ].join('
-');
+            const commentBody = `### 🔄 Rollback Plan Ready
+
+` +
+              `Previous Commit: ${prevSha}
+` +
+              `Current Commit: ${currentSha}
+` +
+              `Package Version: ${packageVersion}
+` +
+              `Artifact: rollback-package-${currentSha}
+
+` +
+              `- [x] ✅ Executable rollback script created and tested
+` +
+              `- [x] ✅ Configuration backups created (package.json, package-lock.json, env templates)
+` +
+              `- [x] ✅ Dependency verification script created for compatibility checks
+` +
+              `- [x] ✅ Detailed step-by-step rollback documentation generated
+` +
+              `- [x] ✅ Compressed rollback package with checksums prepared
+
+` +
+              `#### Verification Status:
+` +
+              `- Rollback script created: true
+` +
+              `- Configuration backup: true
+` +
+              `SHA256: ${checksum}
+
+` +
+              `#### Quick Rollback Command:
+` +
+              `\`\`\`bash
+` +
+              `# Download and unzip rollback artifact
+` +
+              `unzip rollback-package-${currentSha}.zip
+` +
+              `cd rollback-package
+` +
+              `# Execute rollback
+` +
+              `./rollback.sh
+` +
+              `\`\`\``;
             
             await github.rest.issues.createComment({
               owner: context.repo.owner,
@@ -239,39 +256,39 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const issueNumber = parseInt('${{ needs.pre-deployment.outputs.issue_number }}');
-            const currentSha = '${{ needs.pre-deployment.outputs.current_sha }}';
-            const checksum = '${{ needs.rollback-preparation.outputs.checksum }}';
+            const issueNumber = parseInt("${{ needs.pre-deployment.outputs.issue_number }}");
+            const currentSha = "${{ needs.pre-deployment.outputs.current_sha }}";
+            const checksum = "${{ needs.rollback-preparation.outputs.checksum }}";
             
-            // Remove 'in-progress' label
+            // Remove "in-progress" label
             try {
               await github.rest.issues.removeLabel({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: issueNumber,
-                name: 'in-progress'
+                name: "in-progress"
               });
             } catch (error) {
-              console.log('Label in-progress could not be removed:', error.message);
+              console.log("Label in-progress could not be removed:", error.message);
             }
             
-            // Add 'completed' label
+            // Add "completed" label
             await github.rest.issues.addLabels({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issueNumber,
-              labels: ['completed']
+              labels: ["completed"]
             });
             
             // Post final comment containing "Deployment Completed Successfully" with rollback artifact details
-            const commentBody = [
-              '### Deployment Completed Successfully',
-              '',
-              'Rollback artifact details:',
-              `- Artifact Name: rollback-package-${currentSha}`,
-              `- Package Checksum: SHA256: ${checksum}`
-            ].join('
-');
+            const commentBody = `### Deployment Completed Successfully
+
+` +
+              `Rollback artifact details:
+` +
+              `- Artifact Name: rollback-package-${currentSha}
+` +
+              `- Package Checksum: SHA256: ${checksum}`;
             
             await github.rest.issues.createComment({
               owner: context.repo.owner,
@@ -285,6 +302,6 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issueNumber,
-              state: 'closed',
-              state_reason: 'completed'
+              state: "closed",
+              state_reason: "completed"
             });
