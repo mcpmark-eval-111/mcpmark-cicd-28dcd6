@@ -6,10 +6,8 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
   issues: write
-  pull-requests: write
-  actions: write
 
 jobs:
   pre-deployment:
