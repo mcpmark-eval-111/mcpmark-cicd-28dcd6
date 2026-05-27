@@ -96,72 +96,22 @@ jobs:
       - name: Create Rollback Artifacts
         id: create-artifacts
         run: |
-          mkdir -p rollback-package
           mkdir -p rollback-package/backups
           
-          # 1. Executable rollback script
-          cat << 'EOF' > rollback-package/rollback.sh
-          #!/bin/bash
-          set -euo pipefail
-          echo "=== Executing Rollback Script ==="
-          if [ ! -d "backups" ]; then
-            echo "Error: backups directory not found!" >&2
-            exit 1
-          fi
-          cp backups/package.json ./package.json
-          cp backups/package-lock.json ./package-lock.json
-          if [ -f backups/.env.template ]; then
-            cp backups/.env.template .env
-          fi
-          echo "Configuration restored successfully."
-          if [ -f verify-dependencies.js ]; then
-            node verify-dependencies.js
-          fi
-          echo "=== Rollback Script Completed Successfully ==="
-          EOF
+          # 1. Executable rollback script (base64 decoded)
+          echo "IyEvYmluL2Jhc2gKc2V0IC1ldW8gcGlwZWZhaWwKZWNobyAiPT09IEV4ZWN1dGluZyBSb2xsYmFjayBTY3JpcHQgPT09IgppZiBbICEgLWQgImJhY2t1cHMiIF07IHRoZW4KICBlY2hvICJFcnJvcjogYmFja3VwcyBkaXJlY3Rvcnkgbm90IGZvdW5kISIgPiYyCiAgZXhpdCAxCmZpCmNwIGJhY2t1cHMvcGFja2FnZS5qc29uIC4vcGFja2FnZS5qc29uCmNwIGJhY2t1cHMvcGFja2FnZS1sb2NrLmpzb24gLi9wYWNrYWdlLWxvY2suanNvbgppZiBbIC1mIGJhY2t1cHMvLmVudi50ZW1wbGF0ZSBdOyB0aGVuCiAgY3AgYmFja3Vwcy8uZW52LnRlbXBsYXRlIC5lbnYKZmkKZWNobyAiQ29uZmlndXJhdGlvbiByZXN0b3JlZCBzdWNjZXNzZnVsbHkuIgppZiBbIC1mIHZlcmlmeS1kZXBlbmRlbmNpZXMuanMgXTsgdGhlbgogIG5vZGUgdmVyaWZ5LWRlcGVuZGVuY2llcy5qcwpmaQplY2hvICI9PT0gUm9sbGJhY2sgU2NyaXB0IENvbXBsZXRlZCBTdWNjZXNzZnVsbHkgPT09Igo=" | base64 -d > rollback-package/rollback.sh
           chmod +x rollback-package/rollback.sh
           
           # 2. Configuration backups
           cp package.json rollback-package/backups/
           cp package-lock.json rollback-package/backups/
-          cat << 'EOF' > rollback-package/backups/.env.template
-          PORT=3000
-          NODE_ENV=production
-          DATABASE_URL=mongodb://localhost:27017/prod
-          EOF
+          echo "UE9SVD0zMDAwCk5PREVfRU5WPXByb2R1Y3Rpb24KREFUQUJBU0VfVVJMPW1vbmdvZGI6Ly9sb2NhbGhvc3Q6MjcwMTcvcHJvZAo=" | base64 -d > rollback-package/backups/.env.template
           
           # 3. Dependency verification script
-          cat << 'EOF' > rollback-package/verify-dependencies.js
-          const fs = require('fs');
-          try {
-            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-            console.log('Verifying package compatibility...');
-            console.log(`Package Name: ${pkg.name}`);
-            console.log(`Package Version: ${pkg.version}`);
-            if (!pkg.dependencies) {
-              throw new Error('Dependencies missing in package.json!');
-            }
-            console.log('Dependency check passed successfully.');
-          } catch (error) {
-            console.error('Dependency verification failed:', error.message);
-            process.exit(1);
-          }
-          EOF
+          echo "Y29uc3QgZnMgPSByZXF1aXJlKCdmcycpOwp0cnkgewogIGNvbnN0IHBrZyA9IEpTT04ucGFyc2UoZnMucmVhZEZpbGVTeW5jKCdwYWNrYWdlLmpzb24nLCAndXRmOCcpKTsKICBjb25zb2xlLmxvZygnVmVyaWZ5aW5nIHBhY2thZ2UgY29tcGF0aWJpbGl0eS4uLicpOwogIGNvbnNvbGUubG9nKGBQYWNrYWdlIE5hbWU6ICR7cGtnLm5hbWV9YCk7CiAgY29uc29sZS5sb2coYFBhY2thZ2UgVmVyc2lvbjogJHtwa2cudmVyc2lvbn1gKTsKICBpZiAoIXBrZy5kZXBlbmRlbmNpZXMpIHsKICAgIHRocm93IG5ldyBFcnJvcignRGVwZW5kZW5jaWVzIG1pc3NpbmcgaW4gcGFja2FnZS5qc29uIScpOwogIH0KICBjb25zb2xlLmxvZygnRGVwZW5kZW5jeSBjaGVjayBwYXNzZWQgc3VjY2Vzc2Z1bGx5LicpOwp9IGNhdGNoIChlcnJvcikgewogIGNvbnNvbGUuZXJyb3IoJ0RlcGVuZGVuY3kgdmVyaWZpY2F0aW9uIGZhaWxlZDonLCBlcnJvci5tZXNzYWdlKTsKICBwcm9jZXNzLmV4aXQoMSk7Cn0K" | base64 -d > rollback-package/verify-dependencies.js
           
           # 4. Detailed rollback documentation
-          cat << 'EOF' > rollback-package/README.md
-          # Rollback Plan and Documentation
-          
-          This package contains backups and scripts required to rollback this deployment.
-          
-          ## Rollback Steps:
-          1. Extract this archive into the application root directory.
-          2. Execute the rollback script: `./rollback.sh`
-          3. Ensure the dependency verification script passes.
-          4. Run `npm install` to ensure clean dependencies.
-          5. Start the application: `npm run start`
-          6. Verify system health.
-          EOF
+          echo "IyBSb2xsYmFjayBQbGFuIGFuZCBEb2N1bWVudGF0aW9uCgpUaGlzIHBhY2thZ2UgY29udGFpbnMgYmFja3VwcyBhbmQgc2NyaXB0cyByZXF1aXJlZCB0byByb2xsYmFjayB0aGlzIGRlcGxveW1lbnQuCgojIyBSb2xsYmFjayBTdGVwczoKMS4gRXh0cmFjdCB0aGlzIGFyY2hpdmUgaW50byB0aGUgYXBwbGljYXRpb24gcm9vdCBkaXJlY3RvcnkuCjIuIEV4ZWN1dGUgdGhlIHJvbGxiYWNrIHNjcmlwdDogYC4vcm9sbGJhY2suc2hgCjMuIEVuc3VyZSB0aGUgZGVwZW5kZW5jeSB2ZXJpZmljYXRpb24gc2NyaXB0IHBhc3Nlcy4KNC4gUnVuIGBucG0gaW5zdGFsbGAgdG8gZW5zdXJlIGNsZWFuIGRlcGVuZGVuY2llcy4KNS4gU3RhcnQgdGhlIGFwcGxpY2F0aW9uOiBgbnBtIHJ1biBzdGFydGAKNi4gVmVyaWZ5IHN5c3RlbSBoZWFsdGguCg==" | base64 -d > rollback-package/README.md
           
           # Generate individual SHA256 checksums
           cd rollback-package
