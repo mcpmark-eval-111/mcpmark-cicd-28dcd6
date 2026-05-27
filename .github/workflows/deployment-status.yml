@@ -162,13 +162,13 @@ jobs:
             - SHA256: ${checksum}
             
             #### Quick Rollback Command:
-            \`\`\`bash
+            \x60\x60\x60bash
             # Download and unzip rollback artifact
             unzip rollback-package-${currentSha}.zip
             cd rollback-package
             # Execute rollback
             ./rollback.sh
-            \`\`\``;
+            \x60\x60\x60`;
             
             await github.rest.issues.createComment({
               owner: context.repo.owner,
